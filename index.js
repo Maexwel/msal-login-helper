@@ -1,3 +1,4 @@
+import 'babel-polyfill';
 import { UserAgentApplication } from 'msal'
 import { msalConfig } from './config'
 
