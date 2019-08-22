@@ -1,13 +1,10 @@
-import 'babel-polyfill';
 import { UserAgentApplication } from 'msal'
 import { msalConfig } from './config'
-
 // Ce module permet d'encapsuler la librairie msal.js
 // Grâce à ce module, la connexion et récupération de token est simplifiée
 // Les token récupéré (msal-access-token) permettent d'effectuer des requêtes
 // Sur l'API GRAPH
 
-const scope = { scopes: ["Group.Read.All", "User.Read.All"] } // Scope général (optionel)
 
 /** Méthode de login en utilisant les fonctions msal
  * Le login doit renvoyer un objet contenant les ID et token
@@ -18,14 +15,11 @@ const scope = { scopes: ["Group.Read.All", "User.Read.All"] } // Scope général
  *  et des scopes authorisés
  */
 export const msalLogin = (clientId, tenantId, scopes) => {
-    if (!scopes) {
-        scopes = scope // Si pas de scope, on met celui par défaut de la librairie
-    }
     return new Promise((resolve, reject) => {
         const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId))
         if (msalLoginAgent.getAccount()) {
             // Le compte est disponible
-            return getAccessToken(msalLoginAgent) // Récupération du jeton d'accès
+            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
                 .then(response => {
                     tokenToCache(response.accessToken)
                     return resolve({ ...response, accessToken: `Bearer ${response.accessToken}` }) // on renvoit la réponse
@@ -49,7 +43,6 @@ export const msalLogin = (clientId, tenantId, scopes) => {
                         })
                 })
                 .catch(err => {
-                    console.log(err)
                     return reject(err)
                 })
         }
