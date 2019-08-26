@@ -1,6 +1,6 @@
 {
   "name": "msal-login-helper",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "fonction permettant de récupérer un access token en utilisant la librairie msal.js. Cet access token permet de faire des requêtes graph",
   "main": "index.js",
   "scripts": {
