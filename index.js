@@ -16,7 +16,18 @@ import { msalConfig } from './config'
  */
 export const msalLogin = (clientId, tenantId, scopes) => {
     return new Promise((resolve, reject) => {
-        const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId))
+        const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId)) // Déclaration de l'agent de login
+        msalLoginAgent.handleRedirectCallback((error, response) => {
+            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
+                .then(response => {
+                    tokenToCache(response.accessToken).then(() => {
+                        return resolve({ ...response, accessToken: `Bearer ${response.accessToken}` }) // on renvoit la réponse
+                    })
+                })
+                .catch(err => {
+                    return reject(err)
+                })
+        }) // Déclaration de la gestion de callback
         if (msalLoginAgent.getAccount()) {
             // Le compte est disponible
             return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
@@ -28,23 +39,8 @@ export const msalLogin = (clientId, tenantId, scopes) => {
                     return reject(err)
                 })
         } else {
-            // Il faut un login par popUp
-            return msalLoginAgent.loginPopup(scopes) // Pop up de login
-                .then(response => {
-                    //new UserAgentApplication(msalConfig) // Pour fermer la popup
-                    return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
-                        .then(response => {
-                            tokenToCache(response.accessToken).then(() => {
-                                return resolve({ ...response, accessToken: `Bearer ${response.accessToken}` }) // on renvoit la réponse
-                            })
-                        })
-                        .catch(err => {
-                            return reject(err)
-                        })
-                })
-                .catch(err => {
-                    return reject(err)
-                })
+            // Il faut un login
+            return msalLoginAgent.loginRedirect(scopes)
         }
     })
 }
@@ -59,8 +55,8 @@ const getAccessToken = (msalLoginAgent, scopes) => {
                 return resolve(response) // response contient accessToken
             })
             .catch(err => {
-                if (err.name === "InteractionRequiredAuthError") {
-                    return msalLoginAgent.acquireTokenPopup(scopes)
+                if (err.name === "InteractionRequiredAuthError" || err.name === "ClientAuthError") {
+                    return msalLoginAgent.loginRedirect(scopes)
                         .then(response => {
                             return resolve(response) // response contient accessToken
                         })
