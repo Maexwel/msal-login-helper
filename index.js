@@ -81,7 +81,6 @@ const acquireTokenSilent = () => {
                 // We have a (possibly expired) token
 
                 if (val.expiresIn > timestamp && val.idToken === val.accessToken) {
-                    console.log(key);
                     // Found the correct token
                     token = val.idToken;
                 }
