@@ -20,8 +20,8 @@ export const msalLogin = (clientId, tenantId, scopes) => {
         msalLoginAgent.handleRedirectCallback((error, response) => {
             return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
                 .then(response => {
-                    tokenToCache(response.accessToken).then(() => {
-                        return resolve({ ...response, accessToken: `Bearer ${response.accessToken}` }) // on renvoit la réponse
+                    tokenToCache(response).then(() => {
+                        return resolve({ accessToken: `Bearer ${response}` }) // on renvoit la réponse
                     })
                 })
                 .catch(err => {
@@ -32,8 +32,9 @@ export const msalLogin = (clientId, tenantId, scopes) => {
             // Le compte est disponible
             return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
                 .then(response => {
-                    tokenToCache(response.accessToken)
-                    return resolve({ ...response, accessToken: `Bearer ${response.accessToken}` }) // on renvoit la réponse
+                    tokenToCache(response).then(() => {
+                        return resolve({ accessToken: `Bearer ${response}` }) // on renvoit la réponse
+                    })
                 })
                 .catch(err => {
                     return reject(err)
@@ -56,7 +57,7 @@ const getAccessToken = (msalLoginAgent, scopes) => {
         } catch (err) {
             return msalLoginAgent.loginRedirect(scopes)
                 .then(response => {
-                    return resolve(response) // response contient accessToken
+                    return resolve(response.accessToken) // response contient accessToken
                 })
                 .catch(err => {
                     return reject(err)
