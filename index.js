@@ -50,25 +50,49 @@ export const msalLogin = (clientId, tenantId, scopes) => {
 */
 const getAccessToken = (msalLoginAgent, scopes) => {
     return new Promise((resolve, reject) => {
-        return msalLoginAgent.acquireTokenSilent(scopes)
-            .then(response => {
-                return resolve(response) // response contient accessToken
-            })
-            .catch(err => {
-                if (err.name === "InteractionRequiredAuthError" || err.name === "ClientAuthError") {
-                    return msalLoginAgent.loginRedirect(scopes)
-                        .then(response => {
-                            return resolve(response) // response contient accessToken
-                        })
-                        .catch(err => {
-                            return reject(err)
-                        })
-                } else {
+        try {
+            const token = acquireTokenSilent(); // Custom call to acquiretoken silent function
+            resolve(token); // Token foudn, resolve it
+        } catch (err) {
+            return msalLoginAgent.loginRedirect(scopes)
+                .then(response => {
+                    return resolve(response) // response contient accessToken
+                })
+                .catch(err => {
                     return reject(err)
-                }
-            })
-    })
+                });
+        }
+    });
+};
 
+// Workaround found on https://github.com/AzureAD/microsoft-authentication-library-for-js/issues/759
+// msal js acquire token silent sometimes fail (token expired)
+// It is a manual acquire token
+const acquireTokenSilent = () => {
+    const timestamp = Math.floor((new Date()).getTime() / 1000);
+    let token = null;
+
+    for (const key of Object.keys(localStorage)) {
+        if (key.includes('"authority":')) {
+            const val = JSON.parse(localStorage.getItem(key));
+
+            if (val && val.expiresIn) {
+                // We have a (possibly expired) token
+
+                if (val.expiresIn > timestamp && val.idToken === val.accessToken) {
+                    console.log(key);
+                    // Found the correct token
+                    token = val.idToken;
+                }
+                else {
+                    // Clear old data
+                    localStorage.removeItem(key);
+                }
+            }
+        }
+    }
+    if (token) return token; // If token exist, return it
+    throw new Error('No valid token found'); // Else trhow error, there was no token
 }
 
 /** Mise en cache des jetons
