@@ -7,6 +7,7 @@ export const msalConfig = (clientId, tenantId) => {
         },
         cache: {
             cacheLocation: "localStorage",
+            storeAuthStateInCookie: true,
         }
     }
 }
