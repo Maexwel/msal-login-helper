@@ -2,8 +2,7 @@ import { UserAgentApplication } from 'msal'
 import { msalConfig } from './config'
 // Ce module permet d'encapsuler la librairie msal.js
 // Grâce à ce module, la connexion et récupération de token est simplifiée
-// Les token récupéré (msal-access-token) permettent d'effectuer des requêtes
-// Sur l'API GRAPH
+// Les token récupéré (msal-access-token) permettent d'effectuer des requêtes vers Graph, SharePoint, ...
 
 
 /** Méthode de login en utilisant les fonctions msal
@@ -15,33 +14,27 @@ import { msalConfig } from './config'
  *  et des scopes authorisés
  */
 export const msalLogin = (clientId, tenantId, scopes) => {
-    return new Promise((resolve, reject) => {
-        const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId)) // Déclaration de l'agent de login
-        msalLoginAgent.handleRedirectCallback((error, response) => {
-            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
-                .then(response => {
-                    tokenToCache(response).then(() => {
-                        return resolve({ accessToken: `Bearer ${response}` }) // on renvoit la réponse
-                    })
-                })
-                .catch(err => {
-                    return reject(err)
-                })
-        }) // Déclaration de la gestion de callback
+    return new Promise(async (resolve, reject) => {
+        const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId)); // Déclaration de l'agent de login
+        msalLoginAgent.handleAuthenticationResponse(async (error, response) => {
+            try {
+                const token = await getAccessToken(msalLoginAgent, scopes); // Token
+                await tokenToCache(token); // Cache token
+                return resolve({ accessToken: `Bearer ${token}` }); // Resolve token
+            } catch (err) {
+                reject(err);
+            }
+        });
         if (msalLoginAgent.getAccount()) {
-            // Le compte est disponible
-            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
-                .then(response => {
-                    tokenToCache(response).then(() => {
-                        return resolve({ accessToken: `Bearer ${response}` }) // on renvoit la réponse
-                    })
-                })
-                .catch(err => {
-                    return reject(err)
-                })
+            try {
+                const token = await getAccessToken(msalLoginAgent, scopes); // Token
+                await tokenToCache(token); // Cache token
+                return resolve({ accessToken: `Bearer ${token}` }); // Resolve token
+            } catch (err) {
+                reject(err);
+            }
         } else {
-            // Il faut un login
-            return msalLoginAgent.loginRedirect(scopes)
+            return msalLoginAgent.loginRedirect(scopes); // Login requis
         }
     })
 }
@@ -50,18 +43,17 @@ export const msalLogin = (clientId, tenantId, scopes) => {
  * Cette fonction est une promesse
 */
 const getAccessToken = (msalLoginAgent, scopes) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         try {
             const token = acquireTokenSilent(); // Custom call to acquiretoken silent function
-            resolve(token); // Token foudn, resolve it
+            resolve(token); // Token found, resolve it
         } catch (err) {
-            return msalLoginAgent.loginRedirect(scopes)
-                .then(response => {
-                    return resolve(response.accessToken) // response contient accessToken
-                })
-                .catch(err => {
-                    return reject(err)
-                });
+            try {
+                const { accessToken } = await msalLoginAgent.loginRedirect(scopes); // Redirect to login
+                resolve(accessToken); // Resolve token found
+            } catch (err) {
+                return reject(err);
+            }
         }
     });
 };
