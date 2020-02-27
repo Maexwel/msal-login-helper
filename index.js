@@ -34,7 +34,7 @@ export default class MsalLogin {
                     .then(response => {
                         // get access token from response
                         // response.accessToken
-                        resolve(`Bearer ${response.accessToken}`);
+                        resolve({ accessToken: `Bearer ${response.accessToken}` });
                     })
                     .catch(err => {
                         // could also check if err instance of InteractionRequiredAuthError if you can import the class.
@@ -44,7 +44,7 @@ export default class MsalLogin {
                                     // get access token from response
                                     // response.accessToken
                                     this._acquireTokenSilent(); // Used to remove old data from storage
-                                    resolve(`Bearer ${response.accessToken}`);
+                                    resolve({ accessToken: `Bearer ${response.accessToken}` });
                                 })
                                 .catch(err => {
                                     // handle error.
@@ -60,7 +60,7 @@ export default class MsalLogin {
                             .then(response => {
                                 // get access token from response
                                 // response.accessToken
-                                resolve(`Bearer ${response.accessToken}`);
+                                resolve({ accessToken: `Bearer ${response.accessToken}` });
                             })
                             .catch(err => {
                                 // could also check if err instance of InteractionRequiredAuthError if you can import the class.
@@ -69,7 +69,7 @@ export default class MsalLogin {
                                         .then(response => {
                                             // get access token from response
                                             // response.accessToken
-                                            resolve(`Bearer ${response.accessToken}`);
+                                            resolve({ accessToken: `Bearer ${response.accessToken}` });
                                         })
                                         .catch(err => {
                                             // handle error.
