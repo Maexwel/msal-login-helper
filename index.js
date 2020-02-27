@@ -1,70 +1,115 @@
-import { UserAgentApplication } from 'msal'
-import { msalConfig } from './config'
-// Ce module permet d'encapsuler la librairie msal.js
-// Grâce à ce module, la connexion et récupération de token est simplifiée
-// Les token récupéré (msal-access-token) permettent d'effectuer des requêtes
-// Sur l'API GRAPH
+import { UserAgentApplication } from 'msal';
 
+// Class used to log user with msal library
+// This class provide a way to fetch <access_token> used to call API
+export default class MsalLogin {
+    _msalConfig;
+    _tokenRequest;
 
-/** Méthode de login en utilisant les fonctions msal
- * Le login doit renvoyer un objet contenant les ID et token
- * Il faut savoir que la config est faite pour mettre en cache (localstorage)
- * les informations et token récupéré de la libraire.
- * Cette fonction est une promesse (async)
- * Cette fonction a besoin pour fonctionner du clientId(app graph), le tenantId(domain)
- *  et des scopes authorisés
- */
-export const msalLogin = (clientId, tenantId, scopes) => {
-    return new Promise((resolve, reject) => {
-        const msalLoginAgent = new UserAgentApplication(msalConfig(clientId, tenantId)); // Déclaration de l'agent de login
-        msalLoginAgent.handleRedirectCallback((error, response) => {
-            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
-                .then(response => {
-                    tokenToCache(response).then(() => {
-                        return resolve({ accessToken: `Bearer ${response}` }); // on renvoit la réponse
+    constructor({ clientId, tenantId, cache = { cacheLocation: "localStorage", storeAuthStateInCookie: true }, scopes = [] }) {
+        this._msalConfig = {
+            auth: {
+                clientId,
+                authority: `https://login.microsoftonline.com/${tenantId}`,
+            },
+            cache
+        }; // Configure base config
+        this._tokenRequest = {
+            scopes
+        }; // Configure token request with scopes
+    }
+
+    // retrieve access token
+    getAccessToken() {
+        return new Promise((resolve, reject) => {
+            // Configure base instance of msal library
+            const msalInstance = new UserAgentApplication(this._msalConfig);
+            // Callback when login
+            msalInstance.handleRedirectCallback(function loginCallBack(val) {
+            });
+
+            // Test user is auth
+            if (msalInstance.getAccount()) {
+                msalInstance.acquireTokenSilent(this._tokenRequest)
+                    .then(response => {
+                        // get access token from response
+                        // response.accessToken
+                        resolve(`Bearer ${response.accessToken}`);
                     })
-                })
-                .catch(err => {
-                    return reject(err);
-                });
-        }); // Déclaration de la gestion de callback
-        if (msalLoginAgent.getAccount()) {
-            // Le compte est disponible
-            return getAccessToken(msalLoginAgent, scopes) // Récupération du jeton d'accès
-                .then(response => {
-                    tokenToCache(response).then(() => {
-                        return resolve({ accessToken: `Bearer ${response}` }); // on renvoit la réponse
-                    })
-                })
-                .catch(err => {
-                    return reject(err);
-                });
-        } else {
-            // Il faut un login
-            return msalLoginAgent.loginRedirect(scopes);
-        }
-    });
-};
+                    .catch(err => {
+                        // could also check if err instance of InteractionRequiredAuthError if you can import the class.
+                        if (err.name === "InteractionRequiredAuthError") {
+                            return msalInstance.acquireTokenRedirect(this._tokenRequest)
+                                .then(response => {
+                                    // get access token from response
+                                    // response.accessToken
+                                    this._acquireTokenSilent(); // Used to remove old data from storage
+                                    resolve(`Bearer ${response.accessToken}`);
+                                })
+                                .catch(err => {
+                                    // handle error.
+                                    reject(err); // Error happend
+                                });
+                        }
+                    });
+            } else {
+                // user is not logged in, you will need to log them in to acquire a token;
+                msalInstance.loginRedirect(this._tokenRequest)
+                    .then(response => {
+                        msalInstance.acquireTokenSilent(this._tokenRequest)
+                            .then(response => {
+                                // get access token from response
+                                // response.accessToken
+                                resolve(`Bearer ${response.accessToken}`);
+                            })
+                            .catch(err => {
+                                // could also check if err instance of InteractionRequiredAuthError if you can import the class.
+                                if (err.name === "InteractionRequiredAuthError") {
+                                    return msalInstance.acquireTokenRedirect(this._tokenRequest)
+                                        .then(response => {
+                                            // get access token from response
+                                            // response.accessToken
+                                            resolve(`Bearer ${response.accessToken}`);
+                                        })
+                                        .catch(err => {
+                                            // handle error.
+                                            reject(err); // Error happend
+                                        });
+                                }
+                            });
+                    });
+            }
+        })
+    }
+    // Workaround found on https://github.com/AzureAD/microsoft-authentication-library-for-js/issues/759
+    // msal js acquire token silent sometimes fail (token expired)
+    // It is a manual acquire token
+    _acquireTokenSilent = () => {
+        const timestamp = Math.floor((new Date()).getTime() / 1000);
+        let token = null;
 
-/** Récupération du token d'accès à utiliser pour les appels rest, graph, ... 
- * Cette fonction est une promesse
-*/
-const getAccessToken = (msalLoginAgent, scopes) => {
-    return new Promise((resolve, reject) => {
-        try {
-            const token = acquireTokenSilent(); // Custom call to acquiretoken silent function
-            resolve(token); // Token foudn, resolve it
-        } catch (err) {
-            return msalLoginAgent.loginRedirect(scopes)
-                .then(response => {
-                    return resolve(response.accessToken) // response contient accessToken
-                })
-                .catch(err => {
-                    return reject(err)
-                });
+        for (const key of Object.keys(localStorage)) {
+            if (key.includes('"authority":')) {
+                const val = JSON.parse(localStorage.getItem(key));
+
+                if (val && val.expiresIn) {
+                    // We have a (possibly expired) token
+
+                    if (val.expiresIn > timestamp && val.idToken === val.accessToken) {
+                        // Found the correct token
+                        token = val.accessToken;
+                    }
+                    else {
+                        // Clear old data
+                        localStorage.removeItem(key);
+                    }
+                }
+            }
         }
-    });
-};
+        if (token) return token; // If token exist, return it
+        throw new Error('No valid token found'); // Else trhow error, there was no token
+    };
+}
 
 // Workaround found on https://github.com/AzureAD/microsoft-authentication-library-for-js/issues/759
 // msal js acquire token silent sometimes fail (token expired)
